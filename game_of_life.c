@@ -2,12 +2,13 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <stdbool.h>
+#include <omp.h>
 
 /*
 Name: James Denney
 BlazerId: jdenney2
 Course Section: CS 432
-Homework #: 2
+Homework #: 3
 */
 
 /*
@@ -131,25 +132,26 @@ void printarray(bool **a, int x, int y) {
 }
 
 //Check all of the "real" cell's neighbors, and stores whether or not they should live in a temp array
-bool **checkNeighbors(bool **arr,bool **tempArr, int x, int y) {
-	int i, j, k, l, count;
+bool **checkNeighbors(bool **arr,bool **tempArr, int x, int y, int numThreads) {
+	int i, j, count;
 	changed = false;
+
+	#pragma omp parallel for num_threads(numThreads) private(i, j, count)
 
 	for(i = 1; i < y - 1; i++) {
 		for(j = 1; j < x - 1; j++) {
 			count = 0;
 			//printf("Checking (%d,%d):\n", j, i);
-
-			//Check surrounding cells
-			for(k = i-1; k <= i+1; k++) {
-				for(l = j-1; l <= j+1; l++) {
-					if(arr[k][l] && (k != i || l != j)) {
-						count++;
-					}
-					//printf("\t(%d,%d) = %d, count = %d\n", l, k, arr[k][l], count);
-				} 
-			}   
-
+	
+			count += arr[i-1][j-1];
+			count += arr[i][j-1];
+			count += arr[i+1][j-1];
+			count += arr[i-1][j];
+			count += arr[i+1][j];
+			count += arr[i-1][j+1];
+			count += arr[i][j+1];
+			count += arr[i+1][j+1];			
+   
 			//Die if lonely
 			if(count <= 1 && arr[i][j]) {
 				tempArr[i][j] = true;
@@ -160,7 +162,7 @@ bool **checkNeighbors(bool **arr,bool **tempArr, int x, int y) {
 			if(count >= 4 && arr[i][j]) {
 				tempArr[i][j] = true;
 				changed = true;
-			}
+			}	
 
 			//Return to life
 			if(count == 3 && !arr[i][j]) {
@@ -178,19 +180,17 @@ bool **checkNeighbors(bool **arr,bool **tempArr, int x, int y) {
 int main (int argc, char **argv) {
 	int x, y, ngen, i, j;
 	double starttime, endtime;
-	FILE *fptr;
 
 	srand48(time(0));
 
 	if (argc != 5) {
-		printf("Usage: <%s> <X-Dimension> <Y-Dimension> <N-Generations> <Output-File>\n", argv[0]);
+		printf("Usage: <%s> <X-Dimension> <Y-Dimension> <N-Generations> <N-Threads>\n", argv[0]);
 		exit(-1);
 	}
 
 	x = atoi(argv[1]) + 2;
 	y = atoi(argv[2]) + 2;
 	ngen = atoi(argv[3]);
-	fptr = fopen(argv[4], "w");
 
 	bool **a = NULL, **b = NULL;		
 
@@ -206,7 +206,7 @@ int main (int argc, char **argv) {
 	//printarray(a, x, y);		
 	
 	for(j = 0; j < ngen; j++) {
-		b = checkNeighbors(a, b, x, y);
+		b = checkNeighbors(a, b, x, y, atoi(argv[4]));
 		if(!changed) {
 			break;
 		}
@@ -215,8 +215,7 @@ int main (int argc, char **argv) {
 	}
 
 	endtime = gettime();
-	fprintf(fptr, "Time taken for test = %lf seconds\n", endtime-starttime);
-	fclose(fptr);
+	printf("Time taken for test = %lf seconds\n", endtime-starttime);
 
 	return 0;
 }
